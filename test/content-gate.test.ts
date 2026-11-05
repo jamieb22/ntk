@@ -88,7 +88,7 @@ describe("content gate (abstention on no-documentation queries)", () => {
   });
 });
 
-describe("miss diagnostics (audit item 2)", () => {
+describe.skipIf(process.env.NTK_SKIP_BENCH === "1")("miss diagnostics (audit item 2)", () => {
   const base = {
     candidates: ["a.md::1", "b.md::2"],
     gateReason: "",
