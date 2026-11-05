@@ -31,6 +31,13 @@ const DEFAULT_IGNORES = [
   // test data, not workspace knowledge. .gitignore layering still applies.
   ".scratch",
   "testproject",
+  // NTK-001 hygiene: benchmark/eval trees are experiment data (corpora,
+  // labels, gold-review sheets), not project knowledge — and the labels
+  // would bias retrieval exactly where the project measures it.
+  "bench",
+  "eval",
+  // Agent working-notes files are session ephemera, not project knowledge.
+  "MEMORY.md",
   // EXP-R D8: standard test-fixture locations are index scope, not
   // workspace knowledge (NTK-001 hygiene; treatment layers stay doc-blind
   // per NTK-004 — exclusion happens at scan time only).

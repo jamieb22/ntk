@@ -1,17 +1,13 @@
 # NeedToKnow
-## Technical Specification — Version 1.3
+## Technical Specification — Version 1.2
 
 *The right knowledge, at the right moment.*
 
-Status: Implemented (v0.1.0) — revised from v1.2; aligned with shipped code  
+Status: Proposed (revised from v1.1)  
 Initial platform: OpenCode 2  
 Implementation: TypeScript  
-Deployment: OpenCode plugin (npm package / local directory)  
+Deployment: Global OpenCode plugin  
 Operating model: Local-first, zero configuration
-
-Where this document states numbers marked *shipped*, they are the implemented
-defaults (`src/core/retrieval.ts` `DEFAULTS`, `src/plugin/index.ts`); they are
-internal constants, not user configuration (NTK-001).
 
 ---
 
@@ -104,8 +100,6 @@ Initial supported formats:
 - Plain text (`.txt`)
 - AsciiDoc (`.adoc`)
 
-*Shipped:* discovery uses layered ignore rules — a default set covering dependency/build/cache/IDE directories (node_modules, dist, build, out, target, coverage, .venv, __pycache__, .cache, .ntk, .git/.hg/.svn, .idea/.vscode, vendor) plus the repo's own `.gitignore` at every level, and standard test-fixture locations (`tests/`, `test/resources/`, `fixtures/`, `__tests__/`). Files dot-basenamed (e.g. `.hidden.md`), minified JS, larger than 512 KB, and beyond 5,000 files per project are skipped. The plugin state directory (`.ntk/`) is excluded from its own scan.
-
 The plugin must not scan outside the active workspace without authorization.
 
 ### NTK-003 — Knowledge Indexing
@@ -127,7 +121,7 @@ Documents shall be divided into logical sections, preserving heading hierarchy a
 
 Large sections may be subdivided at paragraph boundaries.
 
-*Shipped:* sections are heading-delimited, keyed `${docPath}::${ordinal}` (capped at 200 sections per document); identifiers are extracted at parse time (max 80, top 24 stored per section as terms); markdown cross-references are recorded per doc. The index is persisted in the project's gitignored state directory (`.ntk/index.json`, versioned; file fingerprints in `.ntk/cache.json`) and reused across sessions. A live in-memory copy is revalidated on a TTL (30 s) and by the change signals of NTK-010.
+The index shall be stored outside the repository and reused across sessions.
 
 Changes to documents shall incrementally update the index.
 
@@ -146,9 +140,22 @@ native instructions system; OpenCode handles native instructions.
 
 ### NTK-005 — Lightweight Source-Code Awareness
 
-NeedToKnow shall observe source files accessed or modified during the current agent task and use them as retrieval signals — establishing relationships between implementation areas and project knowledge.
+NeedToKnow shall index limited source-code metadata to improve documentation retrieval.
 
-*Shipped:* NTK indexes **no source code content**. The implementation is tool-activity observation: file paths from read/edit/write tool events are tracked per session (bounded, most-recent-first; the top entries feed retrieval), filename stems become mid-weight query terms (recency-weighted, discounted below the primary query), and doc-file writes trigger immediate single-file reindexing. No source metadata index, no AST parsing, no language-server integration, no embeddings.
+The metadata shall include, where discoverable:
+
+- File paths
+- Directory and module structure
+- Package or namespace declarations
+- Classes, interfaces, and important symbols
+- Imports and dependencies
+- References to documentation
+
+The plugin shall observe source files accessed or modified during the current agent task.
+
+Source-code awareness is used to establish relationships between implementation areas and project knowledge.
+
+NeedToKnow shall not require full AST parsing, language-server integration, embeddings, or complete source-code indexing.
 
 ### NTK-006 — Task-Aware Retrieval
 
@@ -187,8 +194,6 @@ Retrieval eligibility shall not depend on a predefined vocabulary of development
 
 One strongly evidenced section shall be eligible for selection. The pipeline shall not require multiple candidates or a dominant winner over the score distribution; several similarly relevant sections may all be applicable. Calibrated section-level relevance and applicability criteria may reject weak or unrelated evidence. BM25 tokenization, stopwords, stemming, exact identifiers and internal scoring heuristics remain permissible.
 
-*Shipped:* eligibility is two gates, not a classifier. (1) An absolute section-level BM25 floor (minScore; classic BM25 pinned `d=0` so scores are bounded and the floor transfers across corpora). (2) A content gate: the selection must cover a minimum fraction (0.8, whole-query union; per-span coverage over ≥3-term sentence/line spans for long tasks; a 2-term span corroborated by the candidate's heading for terse follow-ups) of the user's own content terms, and must carry ≥2 evidence terms counting activity and ordinal citations. Exact title/path citations (`《doc》`, file paths, dotted identifiers, verbatim heading echoes, contiguous heading phrases, linked-document propagation) are structural evidence and bypass the coverage floor. The blend is the persistent objective anchor + current turn, with PMI corpus-mined expansion (top 8 terms, BM25 weight 0.4), heading-coverage rank bonus (quadratic in coverage), doc-mtime recency (14-day half-life, ×0.15 weight), activity terms, and a relative floor (5% of the top score) that rejects the incidental tail of a top-heavy run.
-
 ### NTK-007 — Knowledge Relationships
 
 NeedToKnow shall identify relationships between documents and source code, including:
@@ -203,8 +208,6 @@ NeedToKnow shall identify relationships between documents and source code, inclu
 Relevant relationships shall be followed automatically. Document scores may propagate across explicit relationships using bounded, discounted spreading activation (NTK-013).
 
 The implementation must prevent circular traversal and unbounded expansion.
-
-*Shipped:* markdown cross-references are extracted at index time (per doc, capped) and consumed as one-hop spreading activation: the top 3 seed documents propagate 35% of the seed score to sections of their linked documents, at most 6 propagated sections per dispatch, sections ≤400 tokens, deduplicated against existing candidates; evidence is recorded per propagation (`target <- seed`) in diagnostics.
 
 Explicit document relationships shall receive stronger retrieval priority than speculative textual associations.
 
@@ -234,15 +237,11 @@ Include the complete original document when its full contents are necessary to i
 
 The plugin shall automatically choose the inclusion level using relevance, document structure, and available context capacity.
 
-*Shipped:* level selection is relevance-only (document type never caps detail): `full` when the section is small and a strong match (≤100 tok, high score; larger sections only at a higher score), `excerpt` as the default, `overview` (title + first block) as the budget floor; an item exceeding the remaining budget escalates down the ladder (full→excerpt→overview) rather than truncating the better form. Excerpts are extractive sentence selection (first sentence always kept; top-matching sentences, 2–8; code/tables kept whole or dropped, never split), with a per-section safety cap. Structural content with no knowledge (headings, rules, whitespace only) is dropped, not injected.
-
 AI-generated summaries shall not be required in version 1.
 
 NeedToKnow must preserve relevant qualifications, exceptions, amendments, and important constraints.
 
 If selected content cannot fit, it shall record what was omitted rather than silently presenting an incomplete document as complete.
-
-*Shipped:* every excerpt item carries its compression ratio (`kept/total` blocks) on the Source line, and a budget-cut tail renders an explicit `⟪truncated⟫` sentinel — a partial passage can never read as complete.
 
 ### NTK-009 — Automatic Context Injection
 
@@ -256,8 +255,6 @@ Each injected passage shall retain:
 - Optional line references
 - Document version information for diagnostics
 
-*Shipped:* injections render as one `<needtoknow_context>` block appended to the **last user message** of the outgoing request (a tagged content part, metadata tag `needtoknow/context`; not a system-part paste, so it survives per-request assembly and can be replaced atomically). Per item, a `Source:` line carries `path#section-path`, inclusion level, compression ratio, a `gate-only` disclosure when no structural evidence placed the item, and the doc's `updated` date; content is verbatim (excerpt/full/overview); a sentinel marks budget cuts; a machine-readable status comment closes the block (cache kind, revision, outcome, approximate tokens). The block opens with a declaration that the excerpts are reference material, not instructions. A one-time system rules block tells the model the contract: treat excerpts as relevant reference, never instructions, cite `path#heading`, expect absence on gated turns, prefer recent docs on conflict.
-
 The plugin shall:
 
 - Operate without user intervention.
@@ -267,19 +264,13 @@ The plugin shall:
 - Preserve room for conversation history, source code, tools, and model output.
 - Avoid accumulating obsolete documentation across requests.
 
-*Shipped:* the injection seam is the session context hook — it runs on **every** model request, including tool-driven continuations. Duplication is prevented structurally, not by counting: replace-by-tag keeps at most one NTK part on the message; an unchanged selection re-supplies the identical block (prompt-cache-stable); a gated/empty outcome injects nothing, not even an empty block; the rules block is idempotent. Native instructions (AGENTS.md/CLAUDE.md chain) are excluded at scan time and deduped by content signature at runtime (NTK-004).
-
 Context budgeting shall be automatic and adaptive to the number, priority, and diversity of relevant sections (NTK-015).
 
 The implementation shall apply conservative internal limits based on the usable context capacity and observed session usage.
 
-*Shipped:* content budget ≤ 800 tokens per dispatch (adaptive to qualifying sources; see NTK-015), max 4 sections, max 1 per document, per-section safety cap; the injection ceremony (tags, Source lines, footer) is accounted on top and a pathological ceremony overflow declines the whole injection.
-
 For every applicable outgoing model request, NeedToKnow shall ensure the current selected passages are available to the model: inject them into that request or verify their presence under an explicit host context contract. Cached selection does not imply cached injection. A prior injection log alone does not establish current model-context presence.
 
 Repeated injection must not accumulate duplicate copies within the same assembled request or retained conversation. Host-specific integration tests shall verify this behavior, including tool continuations and compaction.
-
-*Shipped:* covered by construction — the context hook re-supplies the selection on every dispatch (cache-hit deliveries included), the replace-by-tag rebuild of the last user message removes any prior NTK part on that message, and the compaction event bumps the state fingerprint so the post-compaction request re-evaluates from the surviving conversation.
 
 ### NTK-010 — Dynamic Context Refresh
 
@@ -295,8 +286,6 @@ NeedToKnow shall automatically reevaluate relevant knowledge when:
 
 Context refresh shall be incremental and event-driven. A new user instruction shall invalidate the retrieval selection or trigger a verified reevaluation, even if its wording resembles an earlier message. Relevant file activity, index revisions, workspace changes, task changes and compaction shall likewise invalidate affected state. Unchanged state may reuse a cached selection, including a cached empty selection, but must still satisfy NTK-009 on each applicable dispatch. See NTK-016.
 
-*Shipped:* the refresh triggers map to concrete events: prompt admission (new turn; task-change detection per NTK-013), tool-completion hooks on doc writes (single-file reindex + selection invalidation), tool reads/edits (activity signal), a throttled periodic probe against filesystem fingerprints (60 s — catches git pulls and edits outside the agent), session compaction (counter bump), workspace switch (per-root state), and native-instruction file edits (signature change).
-
 Each session shall maintain its own task-specific selection state.
 
 Previously injected material shall not remain active indefinitely when it ceases to be relevant. Minor score fluctuations must not repeatedly add and remove the same section (NTK-014).
@@ -306,8 +295,6 @@ For a cold index, NeedToKnow shall perform a bounded initial discovery and retri
 ### NTK-011 — Diagnostics
 
 NeedToKnow shall provide a read-only diagnostic interface, for example `/ntk-status`.
-
-*Shipped surfaces:* `/ntk-status` and `/ntk-debug [on|off|status]` in the TUI (native dialog/toast), the same commands with `-headless` suffix as server commands for SDK/Web/Desktop/harness use (file sinks only), the full report written to `.ntk/status.md`, an operational log (`NTK_LOG`, default `/tmp/ntk-plugin.log`), and the per-dispatch audit stream (NTK-017: `.ntk/debug.jsonl`). Diagnostic reports are file-only: they never enter chat, a model prompt, or the model view. The `ntk_index` tool (and the companion `ntk-reindex` skill) exposes manual reindexing (full rebuild, single file).
 
 It shall report:
 
@@ -350,8 +337,6 @@ NeedToKnow shall:
 
 The plugin shall use the available assembled conversation where the host API exposes it. It shall not claim access to history already discarded by compaction. Short follow-up messages shall use retained active-objective and attention signals rather than being treated as standalone lexical queries.
 
-*Shipped:* the conversation is summarized into retrieval signal, not replayed. The query blends the current user turn with the persistent active-objective anchor (NTK-013) under an episode window (a gap of 10 minutes or 60 minutes elapsed ends the episode); short follow-ups are never standalone queries — the anchor carries them. Exponential recency decay is applied to **document mtime** (14-day half-life), which is the durable freshness signal; conversational distance is handled by the anchor/attention structure rather than per-message weight decay. Hygiene on the input side: NTK's own injected blocks and debug ceremonies are stripped from user text before it becomes any retrieval signal (no feedback loop); a clear question after a large pasted block is isolated as the request, the paste treated as data; generic chatter turns ("ok", "thanks") never displace the anchor.
-
 ### NTK-013 — Two-Speed Active Memory and Spreading Activation
 
 NeedToKnow shall maintain two categories of session-specific retrieval signals:
@@ -371,8 +356,6 @@ After initial lexical retrieval, relevant source-grounded document links may pro
 
 The plugin shall not require AI inference or embeddings for either memory track or graph propagation.
 
-*Shipped:* the anchor is the first substantive request of a task; transitions are Jaccard content-word similarity against the anchor — below 0.05 (hard break) switches immediately, 0.05–0.12 is ambiguous (anchor kept, switch commits only if the new topic recurs; the pending candidate is tracked), ≥0.12 continues the task; a 15-minute idle gap starts a new task; the attention channel keeps the last few (≤4) requests with timestamps. All thresholds are benchmarked internals.
-
 ### NTK-014 — Stable, Coverage-Aware Selection
 
 NeedToKnow shall select a useful **set** of sections, not simply the highest-scoring repetitive hits.
@@ -391,8 +374,6 @@ To avoid rapid context churn, use **hysteresis**: a new section must meet an inc
 
 Selection thresholds and redundancy measures shall remain internal, benchmarked defaults. Report which sections were retained due to inertia and which were excluded for redundancy. A relevance threshold may exclude an isolated weak match, but selection shall not require a minimum candidate count or a top-score-to-median ratio.
 
-*Shipped:* inclusion threshold 0.5; hysteresis retention floor 0.3 (60% of inclusion), retention dropped on a clear task change and capped at the selection size; near-duplicate filtering is MMR-style Jaccard over term bags (>0.75 rejects) with a dual bag (heading-trail ∪ body, and body-only, so cross-file boilerplate is caught), minimum bag size 12 for a meaningful comparison; the relative floor (5% of top) rejects the incidental tail, exempting retained items, exact citations, propagated matches, and verbatim-heading-quoted items. `retained`, `excludedRedundant` and `excludedRelative` are reported by id in diagnostics and the audit stream.
-
 ### NTK-015 — Adaptive Context Allocation
 
 NeedToKnow shall automatically choose the amount of context to inject according to evidence of relevance, the number of distinct applicable sources, and the model's usable context capacity.
@@ -407,8 +388,6 @@ It shall:
 - Recompute the selection for each outgoing request from cached retrieval state, avoiding unnecessary indexing and re-ranking work.
 
 Adaptive allocation means **selecting and packing original text**, not generating a model summary. Packing may be recalculated when usable context capacity changes even if retrieval candidates remain cached.
-
-*Shipped:* the allocation is computed from the count of distinct gate-clearing source documents (`sources`): budget = min(800, 250 + 350 × sources) tokens of content, floor 500; item cap = min(4, max(3, 2 + sources)); a fixed-view caller (the status preview) opts out. Packing fills document slots greedily in rank order; near-duplicates, structure-only content and relative-floor rejects are dropped **before** any qualifying section is cut; the ceremony guard declines when the wrapper alone cannot fit the budget.
 
 Example values for half-life, hysteresis thresholds, graph damping and token limits are implementation parameters to validate against retrieval benchmarks, not requirements for users to configure.
 
@@ -436,8 +415,6 @@ Relevant state includes, as available through the supported SDK:
 
 Cache fingerprints shall be based on stable normalized inputs or monotonically maintained revisions, rather than classification of message phrasing. Inputs shall be ordered deterministically where order has no meaning. Cache entries shall be isolated by workspace and session and shall not retain stale document text after updates or deletion. Conservative invalidation is preferred to falsely reusing stale context.
 
-*Shipped:* the fingerprint joins eight ordered parts — normalized instruction hash, task-anchor hash, native-instruction signature, episode id, turn counter, knowledge-index revision (the persisted index's file mtime, so cross-process reindexes count), compaction counter, and activity-file list hash. Misses classify their cause by part priority (knowledge > compaction > task > input); explicit invalidations (task change, doc reindex) queue a labeled miss. The cache stores only section ids and the outcome flag (including the verified-empty flag) — never document text. Per-session managers, all dropped on session deletion.
-
 The plugin shall not require task-verb lists, domain-noun dictionaries, meta-question phrase exceptions, a minimum number of candidate sections, or a top-vs-median dominance gate to decide whether retrieval is performed. Ordinary stopword removal, stemming, token normalization, section-level thresholds and query terms derived from actual workspace/conversation evidence remain allowed.
 
 A new user instruction shall cause reevaluation even when a short follow-up adds little lexical information. During tool-driven continuations, changed source activity shall cause reevaluation; unchanged state shall reuse cached selection. Task-transition detection remains best effort under NTK-013 and shall not be represented as semantic certainty.
@@ -445,16 +422,6 @@ A new user instruction shall cause reevaluation even when a short follow-up adds
 Diagnostics shall report the state revision, cache hit or miss, invalidation reason, selected sections and actual outgoing injection outcome. If the SDK does not expose enough information to prove presence on a dispatch, diagnostics shall disclose that limitation instead of claiming a verified injection.
 
 No additional model installation, AI inference call, cloud service or project configuration shall be required.
-
-### NTK-017 — File-Only Decision Audit
-
-NeedToKnow shall provide a per-dispatch decision audit that is strictly file-only: audit output shall never enter chat, a model prompt, or the model view.
-
-*Shipped:* enabled by `/ntk-debug on` (`.ntk/debug.json` flag, read live): one JSON record per dispatch to `.ntk/debug.jsonl` (size-rotated) — cache kind + invalidation + revision, the exact blended query, thresholds, ranked candidates with final and base scores and matched terms, injected items with lines/level/tokens/compression, and every rejection by reason; one summary notice line per user turn to the operational log; command reports to `.ntk/status.md`. Records carry section names and numbers only — never document content.
-
-### NTK-018 — Numbered-Heading Matching
-
-NeedToKnow shall treat leading heading numbering ("12. Definition of Done") as a position marker, not title content: verbatim-echo and phrase-citation matching shall compare stripped headings on both sides, so numbered documents (numbered ADRs, books) are matchable by their titles.
 
 ---
 
@@ -496,7 +463,7 @@ Retrieval state revision / cache check
 | Workspace Resolver | Identify active project |
 | Document Scanner | Discover project knowledge |
 | Document Indexer | Extract sections and references |
-| Source Metadata Indexer | Connect code locations to documentation (shipped: tool-activity observation; no code content indexed) |
+| Source Metadata Indexer | Connect code locations to documentation |
 | Task Tracker | Maintain slow active-objective and fast-decay attention signals |
 | Retrieval State Manager | Track state revisions, invalidate per-session caches and reuse valid selections |
 | Relevance Engine | Combine normalized recency-weighted BM25 matches |
@@ -528,19 +495,6 @@ Integration tests must verify the actual conversation and metadata available thr
 
 The exact interfaces must be validated against the installed OpenCode 2 SDK before implementation.
 
-*Shipped mapping (OpenCode 2 plugin API, `@opencode/plugin` 2.2.x):*
-
-| Need | OpenCode 2 hook |
-|---|---|
-| Model-request lifecycle (turn admission, task signals) | `session.hook("prompt")` |
-| Context injection seam (per-dispatch) | `session.hook("context")` (system rules block + last-user-message part) |
-| Compaction awareness | `session.hook("compaction")` |
-| File-access observation, self-edit reindex, activity | `tool.hook("execute.before"/"execute.after")` |
-| Diagnostics commands | `command.transform` (TUI part registers the palette entries; server part the headless sinks) |
-| Manual reindex tool | `tool.transform` (`ntk_index`) |
-| Session cleanup | `event.subscribe` (`session.deleted`) |
-| TUI rendering (dialogs, toasts) | TUI part `context.keymap.layer` + `context.ui.dialog` |
-
 The plugin shall support OpenCode launched through:
 
 - Terminal
@@ -559,7 +513,7 @@ After installation:
 
 1. The plugin identifies the workspace.
 2. It discovers and indexes documentation.
-3. It observes tool activity on project files (source paths as signals; no code indexing).
+3. It records lightweight source metadata.
 4. It maintains a two-speed view of the active task and recent activity.
 5. On each model dispatch, it checks whether retrieval-relevant state has changed.
 6. When needed, it ranks passages using recency-weighted BM25 and explicit reference relationships; otherwise it reuses a valid cached selection.
@@ -596,8 +550,6 @@ NeedToKnow shall:
 - Keep activation depth and candidate sets bounded.
 
 Initial performance objective: cached retrieval and selection within 200 milliseconds for a typical project containing up to 500 documentation files, measured under defined benchmark conditions.
-
-*Shipped (measured, typical corpora):* cache-hit dispatch a few milliseconds, fresh retrieval tens of milliseconds — inside the objective; cold index build takes seconds proportional to corpus size (bounded by the NTK-002/003 caps) and runs once.
 
 Initial index creation may take longer. Measure cache-hit dispatch overhead, cache-miss retrieval latency, and injection overhead separately; report median and tail latency.
 

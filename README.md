@@ -17,22 +17,26 @@ NTK indexes your project's documentation and, before each model dispatch, inject
 
 **Requirements:** OpenCode 2 (plugin API v2), Node ≥ 20. The plugin ships a server part (injection) and a TUI part (status/debug UI).
 
-**From source** (current path — the npm package `opencode-needtoknow` is being prepared; this README's instructions are verified against a source install):
+**The config entry is the install** — add it to `opencode.json` (project scope) or `~/.config/opencode/opencode.json` (global), and OpenCode downloads `opencode-ntk` from the npm registry itself on the next start. No separate `npm install` step:
+
+```jsonc
+{ "plugin": ["opencode-ntk"] }
+```
+
+Pin for controlled rollouts: `"opencode-ntk@0.1.0"`. A project-scope entry (committed to the repo) rolls NTK out to the whole team on their next start.
+
+Restart OpenCode, then send a prompt — NTK builds the index on first dispatch, logs `plugin v0.1.0 loaded` to its log file, and adds a `<needtoknow_rules>` block to the system prompt telling the model how to treat injections. Verify with `/ntk-status`.
+
+**Air-gapped / registry-blocked hosts:** use the source form.
 
 ```bash
 git clone https://github.com/jamieb22/ntk
 cd ntk && npm install && npm run build
 ```
 
-Add the built package to your OpenCode config — in `opencode.json` (project) or `~/.config/opencode/opencode.json` (global):
+then point the config at the built directory: `"plugin": ["/absolute/path/to/ntk"]`.
 
-```jsonc
-{
-  "plugin": ["/absolute/path/to/ntk"]
-}
-```
-
-Restart OpenCode. NTK is active immediately on the next prompt: it builds the index on first dispatch, logs `plugin v0.1.0 loaded` to its log file, and adds a `<needtoknow_rules>` block to the system prompt telling the model how to treat injections. Once published to npm, the entry becomes `"plugin": ["opencode-needtoknow"]`.
+**Housekeeping:** NTK writes only inside each project's `.ntk/` — add it to your global gitignore. Disable instantly with the env var `NTK_DISABLE=1`, remove the config entry to uninstall, and `rm -rf .ntk` to clear its state.
 
 ## What documentation does NTK use?
 
@@ -47,7 +51,7 @@ NTK indexes **documentation, not code** — by extension and by ignore rules, ap
 
 For every model request, NTK searches its local index with terms drawn from the current request (plus the standing task objective and recently touched source files), expands the query with term associations mined from your own docs, and scores the candidate sections. A request qualifies when the matches clear a score floor **and** the content gate — the passages must actually cover the user's own terms. Qualifying sections are compressed (top-matching sentences kept, code and tables kept whole), capped in number, and packed under the token budget. If nothing qualifies, NTK injects nothing.
 
-**Under the hood:** classic BM25 via MiniSearch (pinned saturating parameters, field boosts title > headings > terms > body), Porter stemming + stopword filtering, PMI co-occurrence query expansion mined from the corpus, near-duplicate (MMR) filtering, hysteresis so a doc stays in scope across follow-ups, and a state-fingerprint cache (NTK-016) that reuses a selection — including a verified-empty verdict — when nothing that can change it has changed. Full design: [`docs/design.md`](docs/design.md); measured spec: [`docs/SPEC.md`](docs/SPEC.md). Every threshold is tuned against public documentation corpora (archived reports available on request).
+**Under the hood:** classic BM25 via MiniSearch (pinned saturating parameters, field boosts title > headings > terms > body), Porter stemming + stopword filtering, PMI co-occurrence query expansion mined from the corpus, near-duplicate (MMR) filtering, hysteresis so a doc stays in scope across follow-ups, and a state-fingerprint cache (NTK-016) that reuses a selection — including a verified-empty verdict — when nothing that can change it has changed. Full design: [`docs/design.md`](https://github.com/jamieb22/ntk/blob/main/docs/design.md); measured spec: [`docs/SPEC.md`](https://github.com/jamieb22/ntk/blob/main/docs/SPEC.md). Every threshold is tuned against public documentation corpora (archived reports available on request).
 
 ## Limitations
 
@@ -57,7 +61,7 @@ Be aware of what NTK does **not** do:
 - **Occasional false positives.** A passage can pass the gates and still turn out not to be useful. The rules block tells the model to treat injections as reference, not instructions, and to say so when a passage was unhelpful; `/ntk-debug` records every decision with the reason, so you can inspect (and, from the audit files, tune the project) after the fact.
 - **Undocumented knowledge is unreachable.** NTK retrieves project documentation; it cannot recover decisions that live only in code, commit history, or people's heads.
 - **Injections enter the model context.** Selection happens locally, on your machine. The *selected* passages become part of the prompt sent to whichever model provider you configured in OpenCode. Documentation you wouldn't send to your provider should stay out of indexed paths (`.gitignore` and the exclusion list above apply).
-- **Lexical, not semantic:** no embeddings, no model calls, no hosted reranking. (A cross-encoder demotion policy is validated research in this repo — `src/core/rerank.ts`, weights in `model/README.md` — unwired, not shipped, no ONNX runtime at install.)
+- **Lexical, not semantic:** no embeddings, no model calls, no hosted reranking. (A cross-encoder demotion policy is validated research in this repo — `src/core/rerank.ts`, research notes in [`docs/rerank.md`](https://github.com/jamieb22/ntk/blob/main/docs/rerank.md) — unwired, not shipped, no ONNX runtime at install.)
 
 ## Troubleshooting & observability
 

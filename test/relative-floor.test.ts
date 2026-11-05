@@ -46,8 +46,8 @@ function incidentCorpus(): Corpus {
     // The leak pair: top-of-doc sections whose only query signal is the
     // anchor term in the title field (+ the body mention) and the expansion
     // term — the incident's `matched: [ntk, mechan]` / `[ntk]`.
-    "bench/README.md": `# NTK-bench corpus and split tuning harness (dev-only)\n\nThis harness is the tuning bench for the NTK project. It builds NTK corpora, NTK splits, and NTK gold labels, and it runs NTK sweeps over the NTK grid so that NTK defaults are NTK-baked. The NTK pipeline mines sections, scores candidates, and reports NTK metrics per split.\n\nThe harness exists so that NTK tuning stays reproducible: every NTK number in the NTK report is produced by the same NTK code path on a frozen NTK snapshot of the NTK corpus. NTK splits are leakage-aware; NTK dev and NTK holdout never share NTK documents. The NTK grid search evaluates NTK ablations against NTK baselines, and NTK review gates NTK releases. See the NTK design doc for the NTK mechanism behind NTK retrieval quality.\n\nRun NTK sweeps with the NTK runner; the NTK output lands in NTK/out. NTK fixtures, NTK cases, and NTK labels are all dev-only; none of this NTK tooling ships to end users.\n`,
-    "bench/adv/README.md": `# NTK adversarial benchmark\n\n## Reading the report\n\nThe tokens field is injection size; baselines use raw sizes. Read the report table.\n`,
+    "harness/README.md": `# NTK-harness corpus and split tuning (dev-only)\n\nThis harness is the tuning bench for the NTK project. It builds NTK corpora, NTK splits, and NTK gold labels, and it runs NTK sweeps over the NTK grid so that NTK defaults are NTK-baked. The NTK pipeline mines sections, scores candidates, and reports NTK metrics per split.\n\nThe harness exists so that NTK tuning stays reproducible: every NTK number in the NTK report is produced by the same NTK code path on a frozen NTK snapshot of the NTK corpus. NTK splits are leakage-aware; NTK dev and NTK holdout never share NTK documents. The NTK grid search evaluates NTK ablations against NTK baselines, and NTK review gates NTK releases. See the NTK design doc for the NTK mechanism behind NTK retrieval quality.\n\nRun NTK sweeps with the NTK runner; the NTK output lands in NTK/out. NTK fixtures, NTK cases, and NTK labels are all dev-only; none of this NTK tooling ships to end users.\n`,
+    "harness/adv/README.md": `# NTK adversarial benchmark\n\n## Reading the report\n\nThe tokens field is injection size; baselines use raw sizes. Read the report table.\n`,
   };
   for (const v of vocab) corpus[`docs/f-${v}.md`] = filler(v);
   return corpus;
@@ -77,9 +77,9 @@ describe("relative selection floor (dogfood: phase-2 bench leak)", () => {
     expect(r.items.some((i) => i.docPath === "docs/design.md" && i.heading.includes("Phasing"))).toBe(true);
     // ...and greedy per-doc fill injects the anchor-only matches at the tail
     // of the distribution (the dogfood incident).
-    expect(r.items.some((i) => i.docPath.startsWith("bench/"))).toBe(true);
+    expect(r.items.some((i) => i.docPath.startsWith("harness/"))).toBe(true);
     const top = Math.max(...r.items.map((i) => i.score));
-    const leak = r.items.filter((i) => i.docPath.startsWith("bench/"));
+    const leak = r.items.filter((i) => i.docPath.startsWith("harness/"));
     expect(leak.length).toBeGreaterThan(0);
     expect(leak[0]!.score / top).toBeLessThan(0.15); // tail, not peer
   });
@@ -90,14 +90,14 @@ describe("relative selection floor (dogfood: phase-2 bench leak)", () => {
     expect(r.trace.gateOverride).toContain("heading-ordinal"); // gate unchanged
     expect(r.items.some((i) => i.docPath === "docs/spec.md" && i.heading.includes("Phase 2"))).toBe(true);
     expect(r.items.some((i) => i.docPath === "docs/design.md" && i.heading.includes("Phasing"))).toBe(true);
-    expect(r.items.some((i) => i.docPath.startsWith("bench/adv"))).toBe(false);
+    expect(r.items.some((i) => i.docPath.startsWith("harness/adv"))).toBe(false);
     // Rejection is auditable per candidate, with the reason bucket.
-    expect(r.trace.excludedRelative.some((id) => id.startsWith("bench/adv/README.md"))).toBe(true);
+    expect(r.trace.excludedRelative.some((id) => id.startsWith("harness/adv/README.md"))).toBe(true);
   });
 
   it("a stronger floor clears the whole bench tail", () => {
     const r = incidentRun({ minTopFraction: 0.15 });
-    expect(r.items.every((i) => !i.docPath.startsWith("bench/"))).toBe(true);
+    expect(r.items.every((i) => !i.docPath.startsWith("harness/"))).toBe(true);
     expect(r.items.length).toBeGreaterThanOrEqual(2); // gold pair intact
   });
 
@@ -165,8 +165,8 @@ describe("relative floor exemptions (recall guards)", () => {
   it("exact 《title》 references bypass the floor (user-named evidence)", () => {
     const root = makeTempProject(incidentCorpus());
     try {
-      const r = runRetrieval(indexProjectFull(root), "《NTK-bench》", EMPTY, PASSES);
-      expect(r.items.some((i) => i.docPath === "bench/README.md")).toBe(true);
+      const r = runRetrieval(indexProjectFull(root), "《NTK-harness》", EMPTY, PASSES);
+      expect(r.items.some((i) => i.docPath === "harness/README.md")).toBe(true);
     } finally {
       cleanupProject(root);
     }

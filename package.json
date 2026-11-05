@@ -1,5 +1,5 @@
 {
-  "name": "opencode-needtoknow",
+  "name": "opencode-ntk",
   "version": "0.1.0",
   "description": "Automatic task-aware context retrieval for OpenCode — finds the project docs relevant to the current conversation and injects them, no configuration.",
   "type": "module",
@@ -25,8 +25,6 @@
   "engines": {
     "node": ">=20"
   },
-  "main": "./dist/plugin/index.js",
-  "types": "./dist/plugin/index.d.ts",
   "exports": {
     ".": {
       "import": "./dist/plugin/index.js",
@@ -42,7 +40,10 @@
   },
   "files": [
     "dist",
-    "docs",
+    "!dist/**/*.map",
+    "!dist/needtoknow-plugin.js",
+    "!dist/core/applicability.js",
+    "!dist/core/applicability.d.ts",
     "skill",
     "README.md",
     "LICENSE",
@@ -58,20 +59,18 @@
     "prepublishOnly": "npm run lint && npm test && npm run build"
   },
   "dependencies": {
-    "@opencode-ai/plugin": "^1.14.20",
-    "@opencode/client": "^2.2.5",
     "@opencode/plugin": "2.2.5",
     "fast-glob": "^3.3.3",
     "gray-matter": "^4.0.3",
     "ignore": "^7.0.5",
     "minisearch": "^7.1.2",
     "natural": "^8.1.0",
-    "opencode-needtoknow": "file:opencode-needtoknow-0.1.0.tgz",
     "remark-parse": "^11.0.0",
     "unified": "^11.0.5"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",
+    "esbuild": "^0.28.2",
     "onnxruntime-node": "^1.31.1",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",
