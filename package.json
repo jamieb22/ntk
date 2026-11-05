@@ -66,16 +66,15 @@
     "ignore": "^7.0.5",
     "minisearch": "^7.1.2",
     "natural": "^8.1.0",
+    "opencode-needtoknow": "file:opencode-needtoknow-0.1.0.tgz",
     "remark-parse": "^11.0.0",
     "unified": "^11.0.5"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",
+    "onnxruntime-node": "^1.31.1",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
-  },
-  "optionalDependencies": {
-    "onnxruntime-node": "^1.31.1"
   }
 }

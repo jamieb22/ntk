@@ -57,7 +57,7 @@ Be aware of what NTK does **not** do:
 - **Occasional false positives.** A passage can pass the gates and still turn out not to be useful. The rules block tells the model to treat injections as reference, not instructions, and to say so when a passage was unhelpful; `/ntk-debug` records every decision with the reason, so you can inspect (and, from the audit files, tune the project) after the fact.
 - **Undocumented knowledge is unreachable.** NTK retrieves project documentation; it cannot recover decisions that live only in code, commit history, or people's heads.
 - **Injections enter the model context.** Selection happens locally, on your machine. The *selected* passages become part of the prompt sent to whichever model provider you configured in OpenCode. Documentation you wouldn't send to your provider should stay out of indexed paths (`.gitignore` and the exclusion list above apply).
-- **Lexical, not semantic:** no embeddings, no model calls, no hosted reranking. (A local TinyBERT cross-encoder demotion policy is validated and present in `src/core/rerank.ts` — tested, inert, not wired, and not shipped in the package; `onnxruntime-node` sits in optionalDependencies for it.)
+- **Lexical, not semantic:** no embeddings, no model calls, no hosted reranking. (A cross-encoder demotion policy is validated research in this repo — `src/core/rerank.ts`, weights in `model/README.md` — unwired, not shipped, no ONNX runtime at install.)
 
 ## Troubleshooting & observability
 
