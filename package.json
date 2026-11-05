@@ -1,0 +1,81 @@
+{
+  "name": "opencode-needtoknow",
+  "version": "0.1.0",
+  "description": "Automatic task-aware context retrieval for OpenCode — finds the project docs relevant to the current conversation and injects them, no configuration.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jamieb/opencode-needtoknow.git"
+  },
+  "homepage": "https://github.com/jamieb/opencode-needtoknow#readme",
+  "bugs": {
+    "url": "https://github.com/jamieb/opencode-needtoknow/issues"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "retrieval",
+    "bm25",
+    "context",
+    "documentation",
+    "rag"
+  ],
+  "author": "Jamie Band",
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "./dist/plugin/index.js",
+  "types": "./dist/plugin/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/plugin/index.js",
+      "types": "./dist/plugin/index.d.ts"
+    },
+    "./tui": {
+      "import": "./dist/tui/index.js",
+      "types": "./dist/tui/index.d.ts"
+    }
+  },
+  "bin": {
+    "ntk": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "docs",
+    "model",
+    "skill",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "ntk": "tsx src/cli.ts",
+    "fetch-model": "node scripts/fetch-model.mjs",
+    "prepublishOnly": "npm run lint && npm test && npm run build"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.14.20",
+    "@opencode/client": "^2.2.5",
+    "@opencode/plugin": "2.2.5",
+    "fast-glob": "^3.3.3",
+    "gray-matter": "^4.0.3",
+    "ignore": "^7.0.5",
+    "minisearch": "^7.1.2",
+    "natural": "^8.1.0",
+    "onnxruntime-node": "^1.31.1",
+    "remark-parse": "^11.0.0",
+    "unified": "^11.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

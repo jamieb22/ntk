@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.ntk/
+*.log
+.DS_Store
+model/*
+!model/README.md
+*.tsbuildinfo
