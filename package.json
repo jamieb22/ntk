@@ -6,11 +6,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jamieb/opencode-needtoknow.git"
+    "url": "git+https://github.com/jamieb22/opencode-needtoknow.git"
   },
-  "homepage": "https://github.com/jamieb/opencode-needtoknow#readme",
+  "homepage": "https://github.com/jamieb22/opencode-needtoknow#readme",
   "bugs": {
-    "url": "https://github.com/jamieb/opencode-needtoknow/issues"
+    "url": "https://github.com/jamieb22/opencode-needtoknow/issues"
   },
   "keywords": [
     "opencode",
