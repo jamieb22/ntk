@@ -39,9 +39,6 @@ jobs:
           registry-url: "https://registry.npmjs.org"
       - run: npm ci
       - run: npm run build
-      # The TinyBERT model (4.5 MB, gitignored) ships in the npm tarball only:
-      # fetch it into model/ before packing (documented in model/README.md).
-      - run: npm run fetch-model
       - run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
