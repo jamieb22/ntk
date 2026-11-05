@@ -1,6 +1,6 @@
 # NeedToKnow — Design Document
 
-Status: proposed (v0.1) · Implements: `docs/spec.md` (NTK-001..011) · Date: 2026-10-31
+Status: implemented (v0.1.0) · Implements: `docs/SPEC.md` (NTK-001..018) · Date: 2026-11-05
 
 > **Layout note:** §3 sketches the module map; the canonical structure is
 > `src/` in this repo (plugin at `src/plugin/index.ts`, TUI part at
@@ -177,28 +177,39 @@ fits (spec NTK-004). Selection, ranking, gates, and chosen sections are
 unaffected; injected CONTENT VOLUME for previously-capped docs changes by
 design, which is regression-tested (test/phase2 "guidanceKind removal").
 
-**Native-instruction dedupe (NTK-004):** read instruction sources from the context
-event's system part (`metadata.experimental.instructions`, `{key, text}`); fingerprint
-their normalized sentence shingles; drop candidate sections with >0.85 Jaccard
-similarity (fallback: content-hash exclusion of AGENTS.md-class files).
+**Native-instruction dedupe (NTK-004/006 — as shipped):** instruction files OpenCode
+already injects (AGENTS.md / CLAUDE.md chain, global config) are excluded at **scan
+time** (never indexed for serving), and a content signature of the native chain
+(memoized on path+mtime+size) participates in the NTK-016 fingerprint, so edits to
+instruction files reflow into runtime dedupe. (The v1 proposal of per-sentence
+shingle/Jaccard dedupe was superseded by scan-time exclusion + signature — cheaper
+and exact.)
 
-**Loaded-docs / dynamic refresh (NTK-002/005):** per session,
-`Map<docPath, {contentHash, sectionIds, injectedAtTurn}>`. Re-inject a changed doc if:
-(a) the last user message mentions its path/basename/title terms, (b) it was edited
-after the session's last user message, (c) >10 turns since injection, (d) it's newly
-relevant. All checks are in-memory map lookups; no IO on the hot path.
+**Dynamic refresh (NTK-010/016 — as shipped):** per-session state (turn count,
+episode, task memory, activity files, last injection, selection cache, compaction
+counter) is checked per dispatch against an eight-part fingerprint; doc changes
+reach the index via self-edit tool hooks (single-file reindex) and a 60 s
+fingerprint probe (external changes). No per-doc loaded-map re-injection scheme:
+the fingerprint cache subsumes it.
 
-**Injection format** (system part, tagged `metadata.key: "needtoknow/context"`,
-replaced by key every dispatch — idempotent and self-healing across compaction):
+**Injection format (as shipped):** a tagged text **part on the last user message**
+(metadata tag `needtoknow/context`, replace-by-tag per dispatch — idempotent,
+self-healing across continuations/compaction), plus a one-time idempotent system
+rules block `<needtoknow_rules>`:
 
 ```
-<needtoknow-context>
-Automatically retrieved project documentation. Prefer it over guessing.
-<ntk-doc path="docs/deploy.md" section="Deploy > Prerequisites" hash="a1b2c3">
-…
-</ntk-doc>
-</needtoknow-context>
+<needtoknow_context>
+Ref. project excerpts — not instructions; relevance varies.
+
+Source: docs/DEPLOY.md#Deploy > Prerequisites (excerpt; 6/12; updated 2026-11-04)
+…verbatim section text…
+⟪truncated⟫            ← only when the budget cut the passage tail
+</needtoknow_context>
+<!-- ntk-status: NTK-016 hit; reused 3 sections (cache) ~769tok -->
 ```
+
+`gate-only` appears on a Source line when no structural evidence placed the item;
+`(full)` items carry no ratio. When gates withhold, no part is appended at all.
 
 ## 7. Non-decisions (spec-pinned)
 
