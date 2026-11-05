@@ -51,46 +51,64 @@ model-invoked tool calls, violating NTK-001.
 
 ```
 src/
-  index.ts          # Plugin.define + setup(ctx): wiring only (thin adapter)
-  config.ts         # thresholds, boosts, budgets, caps, indexVersion
-  scanner.ts        # fast-glob walk, gitignore, ext/size limits, exclusions
-  parse.ts          # MDAST → sections; front-matter; adoc/txt fallbacks
-  tokenize.ts       # processTerm: identifier split → lowercase → stopwords → stem
-  index-store.ts    # build/persist/load MiniSearch + section store via ctx.storage
-  watcher.ts        # ctx.event("file.edited") + throttled mtime revalidation
-  retrieve/
-    bm25.ts         # query construction + MiniSearch.search wrapper
-    structural.ts   # code-term extraction from conversation (Phase 2)
-    select.ts       # score floor, per-doc caps, relevance-only level, token budget
-  inject/
-    packer.ts       # render <needtoknow-context> system part
-    dedupe.ts       # native-instruction + loaded-docs dedupe (NTK-004)
-  tracker.ts        # per-session loaded docs + activity (NTK-002/005)
-  status.ts         # /ntk-status command + ntk_status tool
+  cli.ts              # dev/eval CLI: index | query | status | bench | smoke
+  index-store.ts      # NTKIndex facade + build/persist/load (.ntk/index.json,
+                      # incremental fingerprints, single-file reindex, revisions)
+  plugin/index.ts     # server Plugin.define + setup(ctx): hooks, injection seam,
+                      # commands, ntk_index tool, session lifecycle (thin adapter)
+  tui/index.ts        # TUI Plugin.define: /ntk-status dialog, /ntk-debug toasts
+  core/
+    scanner.ts        # fast-glob walk, gitignore layers, ext/size caps, links
+    parse.ts          # MDAST → sections; front-matter; adoc/txt fallbacks
+    tokenize.ts       # processTerm: identifier split → lowercase → stopwords → stem
+    bm25.ts           # MiniSearch build/serialize + pinned classic-BM25 params
+    expansion.ts      # PMI co-occurrence dictionary mined at index time
+    retrieval.ts      # pipeline: query → expand → search → gates → select → pack
+    compress.ts       # layer-1 extractive compression (never abstractive)
+    rerank.ts         # optional local TinyBERT cross-encoder (H2; inert w/o model)
+    state.ts          # NTK-016 eight-part fingerprint cache manager
+    task-memory.ts    # two-speed anchor/attention, transitions, chatter (NTK-013)
+    native-instructions.ts # AGENTS.md/CLAUDE.md chain + signature dedupe (NTK-006)
+    tool-events.ts    # V2 tool-event → activity/reindex signal mapping (NTK-004)
+    debug-logging.ts  # NTK-017 file-only audit: .ntk/debug.jsonl, notices, flag
+    status.ts         # report builders shared by TUI and headless commands
+    types.ts          # data model (SectionRecord, ContextItem, trace, options)
+    util.ts           # fnv1a, posix path helpers, bounded file-tail reader
+    log.ts            # shared file logger (server + TUI parts)
 test/
-  corpus/           # generated 500-doc corpus + labeled task/required-doc set
-  *.test.ts         # unit tests per module
-  eval/             # recall + precision@k + P95 latency harness
+  *.test.ts           # unit + integration (fake ctx harness; 225 shipped tests)
+  helpers.ts          # corpus/section fixtures
 ```
 
-Retrieval modules are **independently testable offline** (Phase 1b exposes them as a
-CLI: `ntk index <dir>`, `ntk search <query>`, `ntk explain <query>`).
+Retrieval modules are **independently testable offline** (the CLI exposes them:
+`ntk index <dir>`, `ntk query <dir> "<text>" [--verbose]`, `ntk status --probe`).
 
 ## 4. Runtime wiring
 
-`setup(ctx)` registers four things:
+`setup(ctx)` registers:
 
-1. `ctx.session.hook("context", ...)` — **the single injection point**. Runs
+1. `ctx.session.hook("prompt", ...)` — turn admission: per-session turn counter,
+   task-memory update (anchor/attention, transitions, chatter), NTK-017 notice
+   flush, and the throttled 60 s freshness probe (deferred, coalesced).
+2. `ctx.session.hook("context", ...)` — **the single injection point**. Runs
    immediately before every model dispatch, including tool-driven continuations
-   (validated against OpenCode 2 docs; spec §5 gate requires re-validation against
-   the installed SDK in spike 1a).
-2. `ctx.event.on("file.edited", ...)` — instant doc invalidation + session
-   activity stamp.
-3. `ctx.command.transform("ntk", ...)` + `ctx.tool.register("ntk_status", ...)` —
-   status surfaces (model reads tool output and presents it).
-4. Per-workspace **index manager** with a mutex. The context hook never blocks on
-   indexing: if the index is cold, it schedules the build, injects nothing this
-   dispatch, and injects from the next dispatch onward. Status shows `warming`.
+   (validated against OpenCode 2 @opencode/plugin 2.2.x): rules block, retrieval,
+   budget, replace-by-tag part on the last user message.
+3. `ctx.session.hook("compaction", ...)` — bumps the fingerprint's compaction
+   part so the post-compaction request re-evaluates.
+4. `ctx.tool.hook("execute.before"/"execute.after", ...)` — doc-write detection
+   (instant single-file reindex + selection invalidation) and read/write activity
+   tracking (NTK-004).
+5. `ctx.command.transform(...)` — the headless diagnostics commands
+   (`ntk-status-headless`, `ntk-debug-headless`; the TUI part registers the
+   palette's `/ntk-status` + `/ntk-debug`). `ctx.tool.transform(...)` registers
+   the `ntk_index` tool (ntk-reindex skill).
+6. `ctx.event.subscribe(...)` — `session.deleted` → per-session state cleanup.
+
+The context hook never blocks on indexing: if the index is cold it builds
+synchronously on first dispatch (bounded by the §5 caps) and injects from that
+dispatch onward; subsequent changes arrive incrementally (item 4) and via the
+probe (item 1). Status reports the index age.
 
 ## 5. Indexing pipeline
 
@@ -101,7 +119,7 @@ Every section is an independent index record.
 
 ```ts
 {
-  id: "deploy.md#3",   // docId#sectionIdx
+  id: "deploy.md::3",  // `${docPath}::${ordinal}`
   fields: {
     title:    "Deploy",                                       // boost 4
     headings: "Deploy Prereqs",                               // boost 3
@@ -119,12 +137,14 @@ match them against code terms extracted from the conversation.
 **Normalize** — one `processTerm` path used identically for index and query:
 identifier split (camel/snake/kabab) → lowercase → stopword removal → Porter stem.
 
-**Persist** via `ctx.storage` (outside the repo, NTK non-goal):
+**Persist** as a single JSON document in the project's gitignored state dir
+(§5.3; the earlier `ctx.storage` three-file layout was consolidated):
 
 ```
-ntk/index/<wsKey>/minisearch.json   # MiniSearch toJSON() (postings, term table, IDF)
-ntk/index/<wsKey>/sections.json     # section store: id → {headingPath, text, hashes}
-ntk/index/<wsKey>/manifest.json     # file → {mtime, size, hash, docId, sectionIds}
+<project>/.ntk/index.json   # versioned PersistedIndex: docs meta, sections,
+                            # MiniSearch toJSON() string, expansion dict, IDF
+<project>/.ntk/cache.json   # file fingerprints (path → mtime, size) for the
+                            # incremental freshness probe
 ```
 
 Rehydrate with `loadJSON()` in ms; rebuilds are rare.
@@ -155,7 +175,10 @@ rank    × (1 + headingBonus·cov²)   # cov = fraction of the section's own hea
            candidate section's own indexed strings. Bare token mentions,
            doc links and heading coverage leaked negatives and are not
            evidence. No keyword-count floor (NTK-006).
-select  = max 5 sections, max 2 sections/doc, ≤ ~1200 token budget (chars/4 est.)
+select  = max 4 sections (adaptive cap 3–4), max 1 section/doc, content budget
+          min(800, 250 + 350×distinct-sources) tokens, floor 500 (chars/3 est.;
+          NTK-015) — then MMR redundancy, per-section safety cap, and the
+          relative floor (5% of top score) reject the incidental tail
 level   = f(score, section size, remaining budget)   # NO document kinds — see NTK-004
 ```
 
@@ -216,13 +239,13 @@ Source: docs/DEPLOY.md#Deploy > Prerequisites (excerpt; 6/12; updated 2026-11-04
 - ❌ Vector DB / embeddings / ANN / semantic similarity — banned by spec non-goals.
 - ❌ External search servers (Elastic/Meili/Typesense) — banned by zero-config.
 - ❌ SQLite FTS5 — viable but native dep; MiniSearch's pure-JS + JSON serialization fits
-  `ctx.storage` better.
+  the file-persisted index (`.ntk/index.json`) better.
 - ❌ OpenCode agent tools as the retrieval mechanism (see §1).
 - Known limitation, accepted: lexical-only means "sign-in flow" ≠ "authentication"
   unless words overlap. Escalation path if eval fails 95% recall: Phase 2 structural
   signals first; embeddings only as an explicit spec amendment, with the user.
 
-## 8. Phasing
+## 8. Phasing (historical plan — all shipped)
 
 **Phase 1** (spec NTK-001/002/003/006/007/008/009):
 
@@ -241,14 +264,19 @@ polish, ADOC hardening, compaction handling validation.
 
 1. **Added precision@k gate** (≥0.6 at k=5 sections) alongside the spec's 95% recall —
    an auto-injection plugin fails users through noise more than through misses.
-2. Status via `command.transform` + registered `ntk_status` tool (spec left mechanics
-   to §5 validation; this is the validated mechanism).
+2. Status via `command.transform` (server, headless sinks) + native TUI commands
+   (dialogs/toasts through the `./tui` part) — spec left mechanics to §5 validation;
+   this is the validated mechanism.
 3. Third-party libs for gitignore/glob/parse/stem/BM25 (user preference; spec permits
    libraries — it bans services and models, not npm).
 
-## 10. Open items
+## 10. Open items (resolved at v0.1.0)
 
-- Confirm on installed SDK (1a): system-part `metadata.experimental.instructions`
-  availability; `ctx.storage` size limits; event payload shapes for file events.
-- Decide token-budget number (1200) and max-sections (5) via eval, not in advance.
-- Package naming/registry, dev-loading flow (symlink into global plugin dir vs config path).
+- SDK validation (1a): done — context hook fires on prompt and tool continuations
+  (`@opencode/plugin` 2.2.5); injection is a tagged part on the last user message
+  (system parts are reserved for the rules block); native instructions read from
+  disk at scan time, not from undocumented event metadata.
+- Token budget: 800 content, adaptive by source count (NTK-015), max 4 sections,
+  1/doc — eval-driven, not chosen in advance (1d/1f and the EXP series).
+- Packaging: npm package `opencode-needtoknow` (config `"plugin"` entry; dev flow
+  is a path to the built repo).
