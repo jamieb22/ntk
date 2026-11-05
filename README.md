@@ -21,14 +21,14 @@ NTK indexes your project's documentation and, before each model dispatch, inject
 
 ```bash
 git clone https://github.com/jamieb22/ntk
-cd opencode-needtoknow && npm install && npm run build
+cd ntk && npm install && npm run build
 ```
 
 Add the built package to your OpenCode config — in `opencode.json` (project) or `~/.config/opencode/opencode.json` (global):
 
 ```jsonc
 {
-  "plugin": ["/absolute/path/to/opencode-needtoknow"]
+  "plugin": ["/absolute/path/to/ntk"]
 }
 ```
 
