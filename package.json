@@ -6,11 +6,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jamieb22/opencode-needtoknow.git"
+    "url": "git+https://github.com/jamieb22/ntk.git"
   },
-  "homepage": "https://github.com/jamieb22/opencode-needtoknow#readme",
+  "homepage": "https://github.com/jamieb22/ntk#readme",
   "bugs": {
-    "url": "https://github.com/jamieb22/opencode-needtoknow/issues"
+    "url": "https://github.com/jamieb22/ntk/issues"
   },
   "keywords": [
     "opencode",
@@ -21,7 +21,7 @@
     "documentation",
     "rag"
   ],
-  "author": "Jamie Band",
+  "author": "jamieb22",
   "engines": {
     "node": ">=20"
   },

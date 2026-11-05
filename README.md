@@ -20,7 +20,7 @@ NTK indexes your project's documentation and, before each model dispatch, inject
 **From source** (current path — the npm package `opencode-needtoknow` is being prepared; this README's instructions are verified against a source install):
 
 ```bash
-git clone https://github.com/jamieb22/opencode-needtoknow
+git clone https://github.com/jamieb22/ntk
 cd opencode-needtoknow && npm install && npm run build
 ```
 
