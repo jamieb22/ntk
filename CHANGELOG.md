@@ -2,6 +2,12 @@
 
 All notable changes to NeedToKnow are documented here.
 
+## v0.1.1 — 2026-11-05
+
+- Fix OpenCode 2 plugin discovery: `exports` now uses plain string entrypoints (`.` server, `./tui`) — the V1-style conditional map made `opencode plugin add` report "no server, GUI, or TUI entrypoint".
+- README: OpenCode 2 installation (`opencode plugin add opencode-ntk`, `plugins` array, git/path forms).
+- v0.1.0 deprecated on npm (uninstallable via plugin add).
+
 ## v0.1.0 — 2026-11-05
 
 First public release.

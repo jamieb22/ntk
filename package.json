@@ -1,6 +1,6 @@
 {
   "name": "opencode-ntk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Automatic task-aware context retrieval for OpenCode — finds the project docs relevant to the current conversation and injects them, no configuration.",
   "type": "module",
   "license": "MIT",
@@ -26,14 +26,8 @@
     "node": ">=20"
   },
   "exports": {
-    ".": {
-      "import": "./dist/plugin/index.js",
-      "types": "./dist/plugin/index.d.ts"
-    },
-    "./tui": {
-      "import": "./dist/tui/index.js",
-      "types": "./dist/tui/index.d.ts"
-    }
+    ".": "./dist/plugin/index.js",
+    "./tui": "./dist/tui/index.js"
   },
   "bin": {
     "ntk": "./dist/cli.js"
@@ -75,5 +69,7 @@
     "tsx": "^4.20.0",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
-  }
+  },
+  "main": "./dist/plugin/index.js",
+  "types": "./dist/plugin/index.d.ts"
 }

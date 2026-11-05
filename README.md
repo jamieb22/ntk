@@ -15,29 +15,33 @@ NTK indexes your project's documentation and, before each model dispatch, inject
 
 ## Installation
 
-**Requirements:** OpenCode 2 (plugin API v2), Node ≥ 20. The plugin ships a server part (injection) and a TUI part (status/debug UI).
+**Requirements:** OpenCode 2, Node ≥ 20 (the plugin runs inside OpenCode's bundled runtime; the engines field is npm metadata). NTK ships a server part (injection) and a TUI part (status/debug dialogs).
 
-**The config entry is the install** — add it to `opencode.json` (project scope) or `~/.config/opencode/opencode.json` (global), and OpenCode downloads `opencode-ntk` from the npm registry itself on the next start. No separate `npm install` step:
+Install with the OpenCode 2 CLI — it downloads from the npm registry and registers the plugin in your global config:
 
-```jsonc
-{ "plugin": ["opencode-ntk"] }
+```bash
+opencode plugin add opencode-ntk
 ```
 
-Pin for controlled rollouts: `"opencode-ntk@0.1.0"`. A project-scope entry (committed to the repo) rolls NTK out to the whole team on their next start.
+Pin for controlled rollouts: `opencode-ntk@0.1.1`; manage with `opencode plugin check` / `update` / `remove`.
 
-Restart OpenCode, then send a prompt — NTK builds the index on first dispatch, logs `plugin v0.1.0 loaded` to its log file, and adds a `<needtoknow_rules>` block to the system prompt telling the model how to treat injections. Verify with `/ntk-status`.
+**Manual (equivalent)** — add it to the `"plugins"` array in `opencode.json` (project scope, commits roll it out to the team) or `~/.config/opencode/opencode.json` (global):
 
-**Air-gapped / registry-blocked hosts:** use the source form.
+```jsonc
+{ "plugins": ["opencode-ntk"] }
+```
+
+**Air-gapped / registry-blocked hosts:** build once on a networked machine and point config at the directory (paths are supported in `plugins`):
 
 ```bash
 git clone https://github.com/jamieb22/ntk
 cd ntk && npm install && npm run build
+# { "plugins": ["/absolute/path/to/ntk"] }
 ```
 
-then point the config at the built directory: `"plugin": ["/absolute/path/to/ntk"]`.
+After install, send a prompt — NTK builds the index on first dispatch, logs `plugin v0.1.1 loaded` to its log file, and adds a `<needtoknow_rules>` block to the system prompt telling the model how to treat injections. Verify with `/ntk-status`.
 
 **Housekeeping:** NTK writes only inside each project's `.ntk/` — add it to your global gitignore. Disable instantly with the env var `NTK_DISABLE=1`, remove the config entry to uninstall, and `rm -rf .ntk` to clear its state.
-
 ## What documentation does NTK use?
 
 NTK indexes **documentation, not code** — by extension and by ignore rules, applied at scan time:
