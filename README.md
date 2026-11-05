@@ -4,22 +4,6 @@
 
 NTK indexes your project's documentation and, before each model dispatch, injects the sections relevant to the current task — sourced, selective, bounded. The agent gets the knowledge it needs from your docs without pasting, prompting, or any external retrieval service.
 
-## See it in action
-
-```
-You: Why do our ADRs mention "column order" and is there a decision about it?
-
-NeedToKnow — Design Document > 6. Retrieval & scoring (excerpt; 6/13; updated 2026-11-05)
-  ### 6. Retrieval & scoring
-  Per context-hook dispatch:
-  1. full — high score and ≤400 tokens
-  ...
-```
-
-The agent receives the injected passage as a tagged part on your message, with a `Source:` line (doc path, section, inclusion level, freshness) per excerpt. When the gates decide nothing qualifies, **nothing is injected**.
-
-> *Illustrative example* — the shape above is a real NTK injection; the wording is abbreviated for display. A terminal recording from a real session (e.g. an ADR lookup over a public Apache Archiva corpus) will replace this section in a future release. NTK's audit trail makes every injection reproducible: run `/ntk-debug on` to see the exact decision record for each dispatch (see [Troubleshooting](#troubleshooting--observability)).
-
 ## Key features
 
 - **Automatic discovery** — finds project documentation (Markdown/AsciiDoc/txt) on install and keeps the index fresh as files change; no configuration, no include-lists to maintain.
